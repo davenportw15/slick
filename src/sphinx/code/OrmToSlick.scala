@@ -60,10 +60,6 @@ object OrmToSlick extends App {
     object Restrictions{
       def disjunction = new Criteria
     }
-    implicit class PersonExtensions(p: Person){
-      def name_=(s: String): Unit = ()
-      def last_=(s: String): Unit = ()
-    }
   }
   import Tables._
 
@@ -172,8 +168,16 @@ object OrmToSlick extends App {
     };{
       //#ormWriteCaching
       val person = PeopleFinder.getById(5)
-      PersonExtensions(person).name_=("Chris")
-      PersonExtensions(person).last_=("Vogt")
+      //#ormWriteCaching
+    };{
+      import scala.language.reflectiveCalls
+      val person = new {
+        var name: String = ""
+        var last: String = ""
+      }
+      //#ormWriteCaching
+      person.name = "Chris"
+      person.last = "Vogt"
       session.save      
       //#ormWriteCaching
     };{
