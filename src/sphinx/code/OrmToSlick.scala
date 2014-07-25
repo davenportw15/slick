@@ -44,16 +44,21 @@ object OrmToSlick extends App {
     class Criteria{
       def add(r: Restriction) = this
     }
+    type Restriction = Criteria
     class HqlQuery{
-      def setParameterList(column: String, values: Array[Any]): Unit = ()
+      def setParameterList(column: String, values: Array[_]): Unit = ()
     }
     object Property{
       def forName(s:String) = new Property
     }
     class Property{
-      def in(array: Array[Any]): Restriction = new Restriction
+      def in(array: Array[_]): Restriction = new Restriction
+      def lt(i: Int) = new Restriction
+      def gt(i: Int) = new Restriction
     }
-    class Restriction
+    object Restrictions{
+      def disjunction = new Criteria
+    }
   }
   import Tables._
 
@@ -108,6 +113,39 @@ object OrmToSlick extends App {
       val q = session.createCriteria(classOf[Person])
                      .add( id in Array(2,99,17,234) )
       //#criteriaQuery
+      //#criteriaQueryComposition
+      def byIds(c: Criteria, ids: Array[Int]) = c.add( id in ids )
+
+      val c = byIds(
+        session.createCriteria(classOf[Person]),
+        Array(2,99,17,234)
+      )      
+      //#criteriaQueryComposition
+    };{
+      val session = ormSession
+      //#criteriaComposition
+      val age = Property.forName("age")
+      val q = session.createCriteria(classOf[Person])
+                      .add(
+      Restrictions.disjunction
+        .add(age lt 5)
+        .add(age gt 65)
+      )
+      //#criteriaComposition
+    };{
+      //#slickQuery
+      val q = People.filter(p => p.age < 5 || p.age > 65)
+      //#slickQuery
+    };{
+      //#slickQueryWithTypes
+      val q = (People: Query[PersonTable, Person, Seq]).filter(
+        (p: PersonTable) => 
+          (
+            ((p.age: Column[Int]) < 5 || p.age > 65)
+            : Column[Boolean]
+          )
+      )
+      //#slickQueryWithTypes
     }
   }
 }

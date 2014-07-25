@@ -69,40 +69,23 @@ This allows the host language tools some limited understanding about the embedde
 
 It also makes queries compositional. Factoring out filtering by ids becomes easy:
 
-def byIds(c: Criteria, ids: Array[Int]) = c.add( id in ids )
-
-val c = byIds(
-  session.createCriteria(Person.class),
-  Array(2,99,17,234)
-)
+.. includecode:: code/OrmToSlick.scala#criteriaQueryComposition
 
 Of course ids are a trivial example, but this becomes very useful for more complex examples.
 
 Java APIs like Hibernate Criteria Queries do no use Scala's operator overloading capabilities. This can leads to more cumbersome and less familiar code when expressing queries. Let's filter for all people younger 5 or older than 65 for example.
 
-val age = Property.forName("age")
-val q = session.createCriteria(Person.class)
-                      .add(
-			Restrictions.disjunction
-				.add(age lt 5)
-				.add(age gt 65)
-			)
+.. includecode:: code/OrmToSlick.scala#criteriaComposition
 
 With Scala's operator overloading we can do better and that's what Slick uses. The same query in Slick would look like this:
 
-val q = People.filter(p => p.age < 5 || p.age > 65)
+.. includecode:: code/OrmToSlick.scala#slickQuery
 
 There are some limitations to Scala's overloading capabilities that affect Slick. Instead of ``==`` one has to use ``===`` in Slick queries. Also it is not possible to overload ``if`` expressions. Instead Slick comes with a small DSL for SQL case expressions.
 
-As already mentioned, we are working with placeholder values, merely describing the query, not executing it. Here's the same expression again with added toe annotation to allow us looking behind the scenes a bit:
+As already mentioned, we are working with placeholder values, merely describing the query, not executing it. Here's the same expression again with added type annotations to allow us looking behind the scenes a bit:
 
-val q = (People: Query[PersonTable, Person]).filter(
-	(p: PersonTable) => 
-		(
-			((p.age: Column[Int]) < 5 || p.age > 65)
-			: Column[Boolean]
-		)
-)
+.. includecode:: code/OrmToSlick.scala#slickQueryWithTypes
 
 ``Query`` marks collection-like query expressions, e.g. a whole table. ``PersonTable`` is the Slick Table subclass defined for table person. In this context the name of the type may be misleading as it is conceptually used as a prototype for a row here. It has members of type Column representing the individual columns. Expressions based on these columns result in other expressions of type Column. Here we are using Column[Int]'s to compute a Column[Boolean], which we use as the filter expression. Internally, Slick builds a tree from this, which represents the operations and is used to produce the corresponding SQL code. We often call the process of building up expression trees encapsulated in place-holder values as lifting expressions, which is why we also call this query interface the lifted embedding in Slick. 
 
