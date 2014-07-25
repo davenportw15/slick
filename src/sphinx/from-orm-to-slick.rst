@@ -25,19 +25,17 @@ This chapter could also be called strict vs. lazy or imperative vs. declarative.
 
 How many database round trips does this require? In fact reasoning about this question for different code is one of the things you need to devote the most time to when learning the collections-like API of an ORM. What usually happens is, that the ORM would do an immediate database round trip for ``findByIds`` and return the resulting people. Then ``map`` would be a Scala List method and ``.map(_.address)`` accesses the ``address`` of each person. An ORM would witness the ``address`` accesses one-by-one not knowing upfront that they happen in a loop. This often leads to an additional database round trip for each person, which is not ideal (n+1 problem), because database round trips are expensive. To solve the problem, ORMs often provide means to work around this, by basically telling them about the future, so they can aggregate many upcoming calls into fewer more efficient ones.
 
-val people: Seq[Person] = PeopleFinder.findByIds(Seq(2,99,17,234)).prefetch(_.address) // tell the ORM to load all related addresses together
-val addresses: Seq[Address] = people.map(_.address)
+.. includecode:: code/OrmToSlick.scala#ormPrefetch
 
 Here the prefetch method instructs the hypothetical ORM to load all addresses immediately with the people, often in only one or two database round trips. The addresses are then stored in a cache many ORMs maintain. The later ``.map(_.address)`` call could then be fully served from the cache. Of course this is redundant as you basically need to provide the mapping to addresses twice and if you forget to prefetch you will have poor performance. How you specify the pre-fetching rules depends on the ORM, often using external configuration or inline like here.
 
 Slick works differently. To do the same in Slick you would write the following. The type annotations are optional but shown here for clarity.
 
-val peopleQuery: Query[PersonTable,Person,Seq] = People.filter(_.id inSeq(Seq(2,99,17,234)))
-val addressesQuery: Query[AddressTable,Address,Seq] = people.flatMap(_.address)
+.. includecode:: code/OrmToSlick.scala#slickNavigation
 
 As we can see it looks very much like collection operations but the values we get are of type ``Query``. They do not store results, only a plan of the operations that are needed to create a SQL query which produces the results when needed. No database round trips happen at all in our example. To actually fetch results, you can use the ``.run`` method on one of our values.
 
-val addresses: Seq[Address] = addressesQuery.run
+.. includecode:: code/OrmToSlick.scala#slickExecution
 
 A single query is executed and the results returned. This makes database round trips very explicit and easy to reason about. Achieving few database round trips is easy.
 
