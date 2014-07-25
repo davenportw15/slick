@@ -23,7 +23,7 @@ This chapter could also be called strict vs. lazy or imperative vs. declarative.
 
 .. includecode:: code/OrmToSlick.scala#ormObjectNavigation
 
-How many database round trips does this require? In fact reasoning about this question for different code is one of the things you need to devote the most time to when learning the collections-like API of an ORM. What usually happens is, that the ORM would do an immediate database round trip for ``findByIds`` and return the resulting people. Then ``map`` would be a Scala List method and ``.map(_.address)`` accesses the ``address`` of each person. An ORM would witness the ``address`` accesses one-by-one not knowing upfront that they happen in a loop. This often leads to an additional database round trip for each person, which is not ideal (n+1 problem), because database round trips are expensive. To solve the problem, ORMs often provide means to work around this, by basically telling them about the future, so they can aggregate many upcoming calls into fewer more efficient ones.
+How many database round trips does this require? In fact reasoning about this question for different code is one of the things you need to devote the most time to when learning the collections-like API of an ORM. What usually happens is, that the ORM would do an immediate database round trip for ``getByIds`` and return the resulting people. Then ``map`` would be a Scala List method and ``.map(_.address)`` accesses the ``address`` of each person. An ORM would witness the ``address`` accesses one-by-one not knowing upfront that they happen in a loop. This often leads to an additional database round trip for each person, which is not ideal (n+1 problem), because database round trips are expensive. To solve the problem, ORMs often provide means to work around this, by basically telling them about the future, so they can aggregate many upcoming calls into fewer more efficient ones.
 
 .. includecode:: code/OrmToSlick.scala#ormPrefetch
 
@@ -93,11 +93,11 @@ It is important to note that Scala allows to be very type-safe here. E.g. Slick 
 
 A nice property of a Slick-like query language is, that it can be used with Scala's comprehension syntax, which is just Scala-builtin syntactic sugar for collections operations. The above example could be written like:
 
-for( p <- People if p.age < 5 || p.age > 65 ) yield p
+.. includecode:: code/OrmToSlick.scala#slickForComprehension
 
 Scala's comprehension syntax looks much like SQL or ORM query languages. It however lacks syntactic support for some constructs like sorting and grouping, for which one has to use the method-based api, e.g.
 
-( for( p <- People if p.age < 5 || p.age > 65 ) yield p ).orderBy(_.name)
+.. includecode:: code/OrmToSlick.scala#slickOrderBy
 
 Despite the syntactic limitations the comprehension syntax is convenient when dealing with multiple inner joins.
 
@@ -116,7 +116,7 @@ Query granularity
 ---------------------
 With ORMs it is not uncommon to treat objects or complete rows as the smallest granularity when loading data. This is not necessarily a limitation of the frameworks, but a habit of using them. With Slick it is very much encouraged to only fetch the data you actually need. While you can map rows to classes with Slick, it is often more efficient to not use that feature, but to restrict your query. If you only need a person's name and age, just map to those and return them as a tuple.
 
-People.map(p => (p.name, p.age))
+.. includecode:: code/OrmToSlick.scala#slickMap
 
 This allows you to be very precise about what data is actually transferred.
 
@@ -124,11 +124,11 @@ Reads (caching)
 ---------------------
 Slick doesn't cache query results. Working with Slick is like working with JDBC in this regard. Many ORMs come with read and write caches. Caches are side-effects. They can be hard to reason about. It can be tricky to manage cache consistency and lifetime.
 
-PeopleFilter.getById(5)
+.. includecode:: code/OrmToSlick.scala#ormGetById
 
 This call may be served from the database or from a cache. It is not clear at the call site what the performance is. With Slick it is very clear that executing a query leads to a database round trip and that Slick doesn't interfere with member accesses on object.
 
-People.filter(_.id === 5).run
+.. includecode:: code/OrmToSlick.scala#slickRun
 
 Slick returns a consistent, immutable snapshot of a fraction of the database at that point in time. If you need consistency over multiple queries, use transactions.
 
@@ -136,52 +136,35 @@ Writes (and caching)
 ----------------------------------------------------
 Writes in many ORMs require write caching to be performant.
 
-val person = PeopleFilter.getById(5)
-person.name = "Chris"
-person.location = "Switzerland"
-session.save()
+.. includecode:: code/OrmToSlick.scala#ormWriteCaching
 
 Here our hypothetical ORM records changes to the object and the save methods syncs changed back to the database in a single round trip rather than one per member. In Slick you would do the following instead:
 
-val personQuery = People.filter(_.id === 5)
-personQuery.map(p => (p.name,p.location)).update("Chris","Switzerland")
+.. includecode:: code/OrmToSlick.scala#slickUpdate
 
 Slick embraces immutability. Rather than modifying individual members of objects one after the other, you state all modifications at once and Slick creates a single database round trip from it without using a cache. New Slick users seem to be often confused by this syntax, but it is actually very neat. Slick unifies the syntax for queries, inserts, updates and deletes. Here ``personQuery`` is just a query. We could use it to fetch data. But instead, we can also use it to update the columns specified by the query. Or we can use it do delete the rows.
 
-personQuery.delete // deletes person with id 5
+.. includecode:: code/OrmToSlick.scala#slickDelete
 
 For inserts, we insert into the query, that resembles the whole table and can select individual columns in the same way.
 
-People.map(_.name).insert("Chris")
-
+.. includecode:: code/OrmToSlick.scala#slickInsert
 
 Relationships
 --------------------
 ORMs usually provide built-in support for 1-to-many and many-to-many relationships. ORMs hard-code support for them and provide some kind of configuration options to specify them. In SQL on the other hand you would specify them using join in every single query. While Slick works more like SQL, it is compositional and supports abstraction. With Slick you can abstract over relationships or anything else naturally like you abstract over other Scala code. There is not need to hard-code support for certain use cases in Slick and indeed there isn't. You can re-use arbitrary use cases by writing functions. E.g.
 
-implicit class PersonExtensions[C[_]](q: Query[PersonTable, Person, C]) = {
-  // specify mapping of relationship to address
-  def withAddress = q.join(Address).on(_.addressId === _.id)
-}
-
-val chrisQuery = People.filter(_.id === 4234)
-val stefanQuery = People.filter(_.id === 6455)
-
-val chrisWithAddress: (Person, Address) = chrisQuery.withAddress.run
-val stefanWithAddress: (Person, Address) = stefanQuery.withAddress.run
+.. includecode:: code/OrmToSlick.scala#slickRelationships
 
 This way you can abstract over arbitrary use cases, e.g. the common 1-n or n-n relationships or even relationships spanning over multiple tables, relationships with additional discriminators, polymorphic relationships, etc.
 
 A common question for new Slick users is how they can follow a relationships on a result. In an ORM you could do something like this:
 
-val chris: Person = PeopleFilter.byId(4234)
-val address: Address = chris.address
+.. includecode:: code/OrmToSlick.scala#relationshipNavigation
 
 Also already explained in the section about navigating the object graph, Slick does not allow navigation as if data was in memory, because that makes it non-obvious when database round trips happen and can easily lead to too many round trips. Slick is explicit about it. In Slick you would do this instead:
 
-val chrisQuery: Query[PersonTable,Person] = People.filter(_.id === 4234)
-val addressQuery: Query[AddressTable,Address] = chrisQuery.withAddress.map(_._2)
-val address = addressQuery.first
+.. includecode:: code/OrmToSlick.scala#slickRelationships2
 
 If you leave out the type annotation and some intermediate vals it is very clean. And it is very clear where database round trips happen.
 
