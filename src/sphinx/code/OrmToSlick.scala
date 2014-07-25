@@ -37,6 +37,23 @@ object OrmToSlick extends App {
     implicit class OrmPrefetch(people: Seq[Person]){
       def prefetch(f: Person => Address) = people
     }
+    object ormSession{
+      def createQuery(hql: String) = new HqlQuery
+      def createCriteria(cls: java.lang.Class[_]) = new Criteria
+    }
+    class Criteria{
+      def add(r: Restriction) = this
+    }
+    class HqlQuery{
+      def setParameterList(column: String, values: Array[Any]): Unit = ()
+    }
+    object Property{
+      def forName(s:String) = new Property
+    }
+    class Property{
+      def in(array: Array[Any]): Restriction = new Restriction
+    }
+    class Restriction
   }
   import Tables._
 
@@ -44,7 +61,7 @@ object OrmToSlick extends App {
   val dbUrl = "jdbc:h2:mem:ormtoslick;DB_CLOSE_DELAY=-1"
 
   Database.forURL(dbUrl,driver=jdbcDriver) withSession {
-    implicit session =>
+    implicit s =>
     addresses.ddl.create
     addresses.insert(0,"station 14","Lausanne")
     addresses.insert(0,"Broadway 1","New York City")
@@ -76,6 +93,21 @@ object OrmToSlick extends App {
       //#slickExecution
       val addresses: Seq[Address] = addressesQuery.run
       //#slickExecution
+    };{
+      type Query = HqlQuery
+      val session = ormSession
+      //#hqlQuery
+      val hql: String = "FROM Person p WHERE p.id in (:ids)";
+      val q: Query = session.createQuery(hql);
+      q.setParameterList("ids", Array(2,99,17,234));      
+      //#hqlQuery
+    };{
+      val session = ormSession
+      //#criteriaQuery
+      val id = Property.forName("id");
+      val q = session.createCriteria(classOf[Person])
+                     .add( id in Array(2,99,17,234) )
+      //#criteriaQuery
     }
   }
 }

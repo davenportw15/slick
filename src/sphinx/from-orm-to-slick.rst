@@ -49,9 +49,7 @@ String based embeddings
 ^^^^^^^^^^^^^^^^^^^^^^^^
 Quite commonly,  these languages, for example HQL, but also SQL are embedded into programs as Strings. Here is an example for HQL.
 
-val hql: String = "FROM Person p WHERE p.id in (:ids)";
-val q: Query = s.createQuery(hql);
-q.setParameterList("ids", Array(2,99,17,234));
+.. includecode:: code/OrmToSlick.scala#hqlQuery
 
 Strings are a very simple way to embed an arbitrary language and in many programming languages the only way without changing the compiler, for example in Java. While simple, this kind of embedding has significant limitations.
 
@@ -65,9 +63,7 @@ Method based apis
 ^^^^^^^^^^^^^^^^^^^^^
 Instead of getting the ultimate flexibility for the embedded language, an alternative approach is to go with the extensibility features of the host language and use those. Object-oriented languages like Java and Scala allow extensibility throw the definition of api's consisting of object objects and methods. Hibernate's Criteria Queries use this concept and so does Slick.
 
-val id = Property.forName("id");
-val q = session.createCriteria(Person.class)
-                      .add( id in Array(2,99,17,234) )
+.. includecode:: code/OrmToSlick.scala#criteriaQuery
 
 This allows the host language tools some limited understanding about the embedded language providing better support for the features mentioned earlier.
 
